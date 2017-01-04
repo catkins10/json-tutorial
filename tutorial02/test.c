@@ -70,6 +70,9 @@ static void test_parse_number() {
     TEST_NUMBER(1.234E+10, "1.234E+10");
     TEST_NUMBER(1.234E-10, "1.234E-10");
     TEST_NUMBER(0.0, "1e-10000"); /* must underflow */
+    TEST_NUMBER(1.0000000000000002, "1.0000000000000002");
+    TEST_NUMBER(2.2250738585072009E-308, "2.2250738585072009E-308");
+    TEST_NUMBER(1.7976931348623157E308, "1.7976931348623157E308");
 }
 
 #define TEST_ERROR(error, json)\
@@ -87,19 +90,21 @@ static void test_parse_expect_value() {
 
 static void test_parse_invalid_value() {
     TEST_ERROR(LEPT_PARSE_INVALID_VALUE, "nul");
+    TEST_ERROR(LEPT_PARSE_INVALID_VALUE, "fase");
+    TEST_ERROR(LEPT_PARSE_INVALID_VALUE, "tru");
     TEST_ERROR(LEPT_PARSE_INVALID_VALUE, "?");
 
-#if 0
     /* invalid number */
     TEST_ERROR(LEPT_PARSE_INVALID_VALUE, "+0");
     TEST_ERROR(LEPT_PARSE_INVALID_VALUE, "+1");
     TEST_ERROR(LEPT_PARSE_INVALID_VALUE, ".123"); /* at least one digit before '.' */
     TEST_ERROR(LEPT_PARSE_INVALID_VALUE, "1.");   /* at least one digit after '.' */
+    TEST_ERROR(LEPT_PARSE_INVALID_VALUE, "1e");   /* at least one digit after 'e' */
+    TEST_ERROR(LEPT_PARSE_INVALID_VALUE, "1E");   /* at least one digit after 'E' */
     TEST_ERROR(LEPT_PARSE_INVALID_VALUE, "INF");
     TEST_ERROR(LEPT_PARSE_INVALID_VALUE, "inf");
     TEST_ERROR(LEPT_PARSE_INVALID_VALUE, "NAN");
     TEST_ERROR(LEPT_PARSE_INVALID_VALUE, "nan");
-#endif
 }
 
 static void test_parse_root_not_singular() {
@@ -114,10 +119,8 @@ static void test_parse_root_not_singular() {
 }
 
 static void test_parse_number_too_big() {
-#if 0
     TEST_ERROR(LEPT_PARSE_NUMBER_TOO_BIG, "1e309");
     TEST_ERROR(LEPT_PARSE_NUMBER_TOO_BIG, "-1e309");
-#endif
 }
 
 static void test_parse() {
