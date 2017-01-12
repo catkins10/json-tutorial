@@ -1,3 +1,4 @@
+
 #ifdef _WINDOWS
 #define _CRTDBG_MAP_ALLOC
 #include <crtdbg.h>
@@ -8,6 +9,7 @@
 #include <math.h>    /* HUGE_VAL */
 #include <stdlib.h>  /* NULL, malloc(), realloc(), free(), strtod() */
 #include <string.h>  /* memcpy() */
+#include <stdio.h>
 
 #ifndef LEPT_PARSE_STACK_INIT_SIZE
 #define LEPT_PARSE_STACK_INIT_SIZE 256
@@ -90,13 +92,76 @@ static int lept_parse_number(lept_context* c, lept_value* v) {
     return LEPT_PARSE_OK;
 }
 
+static int get_n (const char* x, unsigned* n) {
+  if (*x >= '0' && *x <= '9') {
+    *n = *x - '0';
+    return 0;
+  }
+  if (*x >= 'a' && *x <= 'f') {
+    *n = *x - 'a' + 10;
+    return 0;
+  }
+  if (*x >= 'A' && *x <= 'F') {
+    *n =  *x - 'A' + 10;
+    return 0;
+  }
+  return 1;
+}
+
 static const char* lept_parse_hex4(const char* p, unsigned* u) {
-    /* \TODO */
+    int i, j;
+    unsigned n;
+
+    n = *u = 0;
+
+    for (i=3; i>=0; i--) {
+      if (get_n(p, &n)){
+        return NULL;
+      }
+      for(j=0; j<i; j++)
+        n *= 16;
+      *u += n;
+      p++;
+    }
     return p;
 }
 
+static const char* lept_parse_surrogate(const char* p, unsigned* u){
+  unsigned l;
+
+  if (*p != '\\' || *(p+1) != 'u')
+    return NULL;
+  p += 2;
+
+  if (!(p = lept_parse_hex4(p, &l)))
+    return NULL;
+
+  if (l >= 0xDC00 && l <= 0xDFFF){
+    *u = 0x10000 + (*u - 0xD800) * 0x400 + (l - 0xDC00);
+    return p;
+  } else
+    return NULL;
+}
+
 static void lept_encode_utf8(lept_context* c, unsigned u) {
-    /* \TODO */
+  printf("%d\n", u);
+    if (u <= 0x007E) {
+      PUTC(c, u & 0xFF);
+    } else if (u >= 0x0080 && u <= 0x07FF) {
+      PUTC(c, 0xC0 | ((u >> 6) & 0xFF)); /* 0xC0 = 11000000 */
+      PUTC(c, 0x80 | ( u       & 0x3F)); /* 0x80 = 10000000 */
+    } else if (u >= 0x0800 && u <= 0xFFFF) {
+      PUTC(c, 0xE0 | ((u >> 12) & 0xFF)); /* 0xE0 = 11100000 */
+      PUTC(c, 0x80 | ((u >>  6) & 0x3F)); /* 0x80 = 10000000 */
+      PUTC(c, 0x80 | ( u        & 0x3F)); /* 0x3F = 00111111 */
+    } else if (u >= 0x10000 && u <= 0x10FFFF) {
+      PUTC(c, 0xF0 | ((u >> 18) & 0xFF)); /* 0xF0 = 11110000 */
+      PUTC(c, 0x80 | ((u >> 12) & 0x3F)); /* 0x80 = 10000000 */
+      PUTC(c, 0x80 | ((u >>  6) & 0x3F)); /* 0x80 = 10000000 */
+      PUTC(c, 0x80 | ( u        & 0x3F)); /* 0x3F = 00111111 */
+    } else{
+      /* TODO */
+    }
 }
 
 #define STRING_ERROR(ret) do { c->top = head; return ret; } while(0)
@@ -128,7 +193,11 @@ static int lept_parse_string(lept_context* c, lept_value* v) {
                     case 'u':
                         if (!(p = lept_parse_hex4(p, &u)))
                             STRING_ERROR(LEPT_PARSE_INVALID_UNICODE_HEX);
-                        /* \TODO surrogate handling */
+                        if (u >= 0xD800 && u <= 0xDBFF) {
+                          if(!(p = lept_parse_surrogate(p, &u))){
+                              STRING_ERROR(LEPT_PARSE_INVALID_UNICODE_SURROGATE);
+                          }
+                        }
                         lept_encode_utf8(c, u);
                         break;
                     default:
